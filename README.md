@@ -30,3 +30,14 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Supabase setup
+
+The app reads products, creates COD orders, and authenticates accounts with Supabase. Add these Vite variables to a local `.env.local` file (this file is ignored by Git):
+
+```text
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-publishable-key
+```
+
+Run the SQL in `supabase/schema.sql` in the Supabase SQL Editor. Make sure email authentication is enabled under **Authentication → Providers → Email**. For sign-up testing, either confirm the account email or disable **Confirm email** in the Auth settings. Products fall back to the built-in sample catalog when the table is empty or unavailable.
