@@ -33,6 +33,17 @@ alter table public.products enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 
+-- Admin access is granted only to the dedicated store account.
+drop policy if exists "Products are publicly readable" on public.products;
+drop policy if exists "Anyone can create COD orders" on public.orders;
+drop policy if exists "Anyone can create order items" on public.order_items;
+drop policy if exists "Customers can read their own orders" on public.orders;
+drop policy if exists "Customers can read their own order items" on public.order_items;
+drop policy if exists "Admin can manage products" on public.products;
+drop policy if exists "Admin can view all orders" on public.orders;
+drop policy if exists "Admin can update orders" on public.orders;
+drop policy if exists "Admin can view all order items" on public.order_items;
+
 create policy "Products are publicly readable"
   on public.products for select using (true);
 
@@ -49,3 +60,21 @@ create policy "Customers can read their own order items"
   on public.order_items for select using (
     exists (select 1 from public.orders where orders.id = order_items.order_id and orders.user_id = auth.uid())
   );
+
+create policy "Admin can manage products"
+  on public.products for all
+  using (lower(auth.jwt() ->> 'email') = 'dilkashofficialbd@gmail.com')
+  with check (lower(auth.jwt() ->> 'email') = 'dilkashofficialbd@gmail.com');
+
+create policy "Admin can view all orders"
+  on public.orders for select
+  using (lower(auth.jwt() ->> 'email') = 'dilkashofficialbd@gmail.com');
+
+create policy "Admin can update orders"
+  on public.orders for update
+  using (lower(auth.jwt() ->> 'email') = 'dilkashofficialbd@gmail.com')
+  with check (lower(auth.jwt() ->> 'email') = 'dilkashofficialbd@gmail.com');
+
+create policy "Admin can view all order items"
+  on public.order_items for select
+  using (lower(auth.jwt() ->> 'email') = 'dilkashofficialbd@gmail.com');

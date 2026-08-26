@@ -21,6 +21,7 @@ const money = (value: number) => `৳${value.toLocaleString('en-BD')}`
 const getCart = (): Product[] => JSON.parse(localStorage.getItem('dilkash-cart') || '[]')
 const getOrders = (): Order[] => JSON.parse(localStorage.getItem('dilkash-orders') || '[]')
 const announcements = ['Cash on delivery · Delivery charge confirmed by phone', '7-day doorstep exchange on unworn items', 'Premium menswear, made for Bangladesh']
+const ADMIN_EMAIL = 'dilkashofficialbd@gmail.com'
 
 const isCategory = (value: string): value is Category => ['Punjabis', 'Polos', 'T-Shirts', 'Shirts'].includes(value)
 
@@ -220,13 +221,41 @@ function Orders() {
 }
 
 function Admin() {
-  const [orders, setOrders] = useState(getOrders())
-  const update = (id: string, status: string) => {
-    const next = orders.map((o) => o.id === id ? { ...o, status } : o)
-    setOrders(next)
-    localStorage.setItem('dilkash-orders', JSON.stringify(next))
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
+  const [message, setMessage] = useState('')
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      if (!supabase) { setLoading(false); setMessage('Admin access requires Supabase configuration.'); return }
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData.user || userData.user.email?.toLowerCase() !== ADMIN_EMAIL) {
+        if (active) { setAuthorized(false); setLoading(false); setMessage('Sign in with the authorized DILKASH admin email to continue.') }
+        return
+      }
+      setAuthorized(true)
+      const { data, error } = await supabase.from('orders').select('id, created_at, customer_name, phone, address, status, order_items(product_name, price, quantity)').order('created_at', { ascending: false })
+      if (!active) return
+      if (error) setMessage(`Unable to load orders: ${error.message}`)
+      else {
+        const remoteOrders = (data || []) as unknown as RemoteOrder[]
+        setOrders(remoteOrders.map((order) => ({ id: order.id, date: new Date(order.created_at).toLocaleDateString('en-GB'), customer: order.customer_name, phone: order.phone, address: order.address, status: order.status, items: (order.order_items || []).map((item) => ({ name: item.product_name, price: item.price, quantity: item.quantity })) })))
+      }
+      setLoading(false)
+    }
+    void load()
+    return () => { active = false }
+  }, [])
+  const update = async (id: string, status: string) => {
+    if (!supabase) return
+    const { error } = await supabase.from('orders').update({ status }).eq('id', id)
+    if (error) { setMessage(`Unable to update order: ${error.message}`); return }
+    setOrders((current) => current.map((order) => order.id === id ? { ...order, status } : order))
   }
-  return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Order dashboard.</h2><p className="admin-note">Demo admin view. Orders placed from checkout appear here for phone confirmation.</p>{orders.length === 0 ? <p>No customer orders yet.</p> : orders.map((order) => <article className="order-card" key={order.id}><div><strong>{order.id}</strong><span>{order.date}</span></div><p><b>{order.customer}</b> · {order.phone}<br />{order.items.map((item) => item.name).join(', ')}</p><small>{order.address}</small><select value={order.status} onChange={(e) => update(order.id, e.target.value)}><option>New order</option><option>Confirmed</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select></article>)}</section>
+  if (loading) return <section className="page-section orders-page"><p>Checking admin access…</p></section>
+  if (!authorized) return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Admin access.</h2><p className="account-message">{message}</p><Link className="primary-button" to="/login">Sign in <span>→</span></Link></section>
+  return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Order dashboard.</h2><p className="admin-note">Orders placed by customers appear here for phone confirmation.</p>{message && <p className="account-message">{message}</p>}{orders.length === 0 ? <p>No customer orders yet.</p> : orders.map((order) => <article className="order-card" key={order.id}><div><strong>{order.id}</strong><span>{order.date}</span></div><p><b>{order.customer}</b> · {order.phone}<br />{order.items.map((item) => `${item.name}${item.quantity > 1 ? ` ×${item.quantity}` : ''}`).join(', ')}</p><small>{order.address}</small><select value={order.status} onChange={(e) => void update(order.id, e.target.value)}><option>New order</option><option>Confirmed</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select></article>)}</section>
 }
 
 function App() {
