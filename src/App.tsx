@@ -5,17 +5,17 @@ import { supabase } from './lib/supabase'
 import './App.css'
 
 type Category = 'Punjabis' | 'Polos' | 'T-Shirts' | 'Shirts'
-type Product = { id: number; name: string; category: Category; price: number; image: string; description: string }
+type Product = { id: number; name: string; category: Category; price: number; image: string; description: string; stock: number }
 type OrderLine = { name: string; price: number; quantity: number }
 type Order = { id: string; date: string; customer: string; phone: string; address: string; items: OrderLine[]; status: string }
 
 const sampleProducts: Product[] = [
-  { id: 1, name: 'Signature Pique Polo', category: 'Polos', price: 1450, description: 'A refined cotton polo with a clean, comfortable fit.', image: 'https://images.unsplash.com/photo-1625910513413-5fc45b4e8d6d?auto=format&fit=crop&w=900&q=85' },
-  { id: 2, name: 'Heritage Cotton Panjabi', category: 'Punjabis', price: 2350, description: 'Breathable cotton and understated details for every occasion.', image: 'https://images.unsplash.com/photo-1610652492500-ded49ceeb378?auto=format&fit=crop&w=900&q=85' },
-  { id: 3, name: 'Noir Essential Polo', category: 'Polos', price: 1250, description: 'An everyday essential in deep noir premium cotton.', image: 'https://images.unsplash.com/photo-1627225924765-552d49cf47ad?auto=format&fit=crop&w=900&q=85' },
-  { id: 4, name: 'Ivory Textured Panjabi', category: 'Punjabis', price: 2750, description: 'A textured ivory weave with a modern, elegant silhouette.', image: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=900&q=85' },
-  { id: 5, name: 'Everyday Heavyweight T-Shirt', category: 'T-Shirts', price: 950, description: 'A structured heavyweight tee designed for everyday comfort.', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=85' },
-  { id: 6, name: 'Coastal Oxford Shirt', category: 'Shirts', price: 1850, description: 'A versatile Oxford shirt with a relaxed, polished finish.', image: 'https://images.unsplash.com/photo-1603252110481-7ba873bf42ab?auto=format&fit=crop&w=900&q=85' },
+  { id: 1, name: 'Signature Pique Polo', category: 'Polos', price: 1450, description: 'A refined cotton polo with a clean, comfortable fit.', image: 'https://images.unsplash.com/photo-1625910513413-5fc45b4e8d6d?auto=format&fit=crop&w=900&q=85', stock: 10 },
+  { id: 2, name: 'Heritage Cotton Panjabi', category: 'Punjabis', price: 2350, description: 'Breathable cotton and understated details for every occasion.', image: 'https://images.unsplash.com/photo-1610652492500-ded49ceeb378?auto=format&fit=crop&w=900&q=85', stock: 10 },
+  { id: 3, name: 'Noir Essential Polo', category: 'Polos', price: 1250, description: 'An everyday essential in deep noir premium cotton.', image: 'https://images.unsplash.com/photo-1627225924765-552d49cf47ad?auto=format&fit=crop&w=900&q=85', stock: 10 },
+  { id: 4, name: 'Ivory Textured Panjabi', category: 'Punjabis', price: 2750, description: 'A textured ivory weave with a modern, elegant silhouette.', image: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=900&q=85', stock: 10 },
+  { id: 5, name: 'Everyday Heavyweight T-Shirt', category: 'T-Shirts', price: 950, description: 'A structured heavyweight tee designed for everyday comfort.', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=85', stock: 10 },
+  { id: 6, name: 'Coastal Oxford Shirt', category: 'Shirts', price: 1850, description: 'A versatile Oxford shirt with a relaxed, polished finish.', image: 'https://images.unsplash.com/photo-1603252110481-7ba873bf42ab?auto=format&fit=crop&w=900&q=85', stock: 10 },
 ]
 const money = (value: number) => `৳${value.toLocaleString('en-BD')}`
 const getCart = (): Product[] => JSON.parse(localStorage.getItem('dilkash-cart') || '[]')
@@ -28,7 +28,7 @@ const isCategory = (value: string): value is Category => ['Punjabis', 'Polos', '
 async function loadProducts(): Promise<Product[]> {
   if (!supabase) return sampleProducts
   try {
-    const { data, error } = await supabase.from('products').select('id, name, category, price, description, image_url').order('id')
+    const { data, error } = await supabase.from('products').select('id, name, category, price, description, image_url, stock').order('id')
     if (error || !data?.length) return sampleProducts
     const loaded = data
       .filter((row) => Number.isFinite(Number(row.id)) && isCategory(row.category))
@@ -39,6 +39,7 @@ async function loadProducts(): Promise<Product[]> {
         price: Number(row.price),
         description: row.description || '',
         image: row.image_url || sampleProducts[0].image,
+        stock: Number(row.stock) || 0,
       }))
     return loaded.length ? loaded : sampleProducts
   } catch {
@@ -124,7 +125,12 @@ function Checkout({ cart, clearCart }: { cart: Product[]; clearCart: () => void 
       clearCart()
       navigate(`/confirmation/${orderId}`)
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'We could not place your order. Please try again.')
+      const message = submitError instanceof Error
+        ? submitError.message
+        : typeof submitError === 'object' && submitError !== null && 'message' in submitError
+          ? String(submitError.message)
+          : 'We could not place your order. Please try again.'
+      setError(message)
     } finally {
       setSubmitting(false)
     }
@@ -215,6 +221,8 @@ function Orders() {
 
 function Admin() {
   const [orders, setOrders] = useState<Order[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [editing, setEditing] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [authorized, setAuthorized] = useState(false)
   const [message, setMessage] = useState('')
@@ -228,13 +236,18 @@ function Admin() {
         return
       }
       setAuthorized(true)
-      const { data, error } = await supabase.from('orders').select('id, created_at, customer_name, phone, address, status, order_items(product_name, price, quantity)').order('created_at', { ascending: false })
+      const [{ data, error }, { data: productData, error: productError }] = await Promise.all([
+        supabase.from('orders').select('id, created_at, customer_name, phone, address, status, order_items(product_name, price, quantity)').order('created_at', { ascending: false }),
+        supabase.from('products').select('id, name, category, price, description, image_url, stock').order('id'),
+      ])
       if (!active) return
       if (error) setMessage(`Unable to load orders: ${error.message}`)
       else {
         const remoteOrders = (data || []) as unknown as RemoteOrder[]
         setOrders(remoteOrders.map((order) => ({ id: order.id, date: new Date(order.created_at).toLocaleDateString('en-GB'), customer: order.customer_name, phone: order.phone, address: order.address, status: order.status, items: (order.order_items || []).map((item) => ({ name: item.product_name, price: item.price, quantity: item.quantity })) })))
       }
+      if (productError) setMessage((current) => current || `Unable to load products: ${productError.message}`)
+      else setProducts((productData || []).filter((row) => isCategory(row.category)).map((row) => ({ id: Number(row.id), name: row.name, category: row.category, price: Number(row.price), description: row.description || '', image: row.image_url || '', stock: Number(row.stock) || 0 })))
       setLoading(false)
     }
     void load()
@@ -246,9 +259,31 @@ function Admin() {
     if (error) { setMessage(`Unable to update order: ${error.message}`); return }
     setOrders((current) => current.map((order) => order.id === id ? { ...order, status } : order))
   }
+  const saveProduct = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!supabase) return
+    const data = new FormData(event.currentTarget)
+    const values = { name: String(data.get('name')), category: String(data.get('category')), price: Number(data.get('price')), description: String(data.get('description')), image_url: String(data.get('image')), stock: Number(data.get('stock')) }
+    const result = editing
+      ? await supabase.from('products').update(values).eq('id', editing.id).select('id, name, category, price, description, image_url, stock').single()
+      : await supabase.from('products').insert(values).select('id, name, category, price, description, image_url, stock').single()
+    if (result.error) { setMessage(`Unable to save product: ${result.error.message}`); return }
+    const saved = result.data
+    const product = { id: Number(saved.id), name: saved.name, category: saved.category as Category, price: Number(saved.price), description: saved.description || '', image: saved.image_url || '', stock: Number(saved.stock) || 0 }
+    setProducts((current) => editing ? current.map((item) => item.id === product.id ? product : item) : [...current, product])
+    setEditing(null)
+    setMessage('Product saved.')
+  }
+  const removeProduct = async (product: Product) => {
+    if (!supabase || !window.confirm(`Delete ${product.name}?`)) return
+    const { error } = await supabase.from('products').delete().eq('id', product.id)
+    if (error) { setMessage(`Unable to delete product: ${error.message}`); return }
+    setProducts((current) => current.filter((item) => item.id !== product.id))
+    setMessage('Product deleted.')
+  }
   if (loading) return <section className="page-section orders-page"><p>Checking admin access…</p></section>
   if (!authorized) return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Admin access.</h2><p className="account-message">{message}</p><Link className="primary-button" to="/login">Sign in <span>→</span></Link></section>
-  return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Order dashboard.</h2><p className="admin-note">Orders placed by customers appear here for phone confirmation.</p>{message && <p className="account-message">{message}</p>}{orders.length === 0 ? <p>No customer orders yet.</p> : orders.map((order) => <article className="order-card" key={order.id}><div><strong>{order.id}</strong><span>{order.date}</span></div><p><b>{order.customer}</b> · {order.phone}<br />{order.items.map((item) => `${item.name}${item.quantity > 1 ? ` ×${item.quantity}` : ''}`).join(', ')}</p><small>{order.address}</small><select value={order.status} onChange={(e) => void update(order.id, e.target.value)}><option>New order</option><option>Confirmed</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select></article>)}</section>
+  return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Store management.</h2><p className="admin-note">Manage products here. Customers will see saved changes in the shop.</p>{message && <p className="account-message">{message}</p>}<form className="admin-product-form" onSubmit={saveProduct}><h3>{editing ? 'Edit product' : 'Add product'}</h3><label>Product name<input required name="name" defaultValue={editing?.name || ''} /></label><label>Category<select name="category" defaultValue={editing?.category || 'Polos'}><option>Punjabis</option><option>Polos</option><option>T-Shirts</option><option>Shirts</option></select></label><label>Price<input required min="0" type="number" name="price" defaultValue={editing?.price || 0} /></label><label>Stock<input required min="0" type="number" name="stock" defaultValue={editing?.stock || 0} /></label><label>Image URL<input name="image" defaultValue={editing?.image || ''} /></label><label>Description<textarea name="description" defaultValue={editing?.description || ''} /></label><button className="primary-button" type="submit">{editing ? 'Save changes' : 'Add product'} <span>→</span></button>{editing && <button className="text-link" type="button" onClick={() => setEditing(null)}>Cancel</button>}</form><div className="admin-products"><h3>Products ({products.length})</h3>{products.map((product) => <article className="order-card" key={product.id}><div><strong>{product.name}</strong><span>{product.category}</span></div><p>{money(product.price)} · Stock: {product.stock}</p><button className="text-link" onClick={() => setEditing(product)}>Edit</button><button className="text-link danger-link" onClick={() => void removeProduct(product)}>Delete</button></article>)}</div><h3 className="admin-orders-heading">Customer orders</h3>{orders.length === 0 ? <p>No customer orders yet.</p> : orders.map((order) => <article className="order-card" key={order.id}><div><strong>{order.id}</strong><span>{order.date}</span></div><p><b>{order.customer}</b> · {order.phone}<br />{order.items.map((item) => `${item.name}${item.quantity > 1 ? ` ×${item.quantity}` : ''}`).join(', ')}</p><small>{order.address}</small><select value={order.status} onChange={(e) => void update(order.id, e.target.value)}><option>New order</option><option>Confirmed</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select></article>)}</section>
 }
 
 function App() {
@@ -261,7 +296,7 @@ function App() {
     void loadProducts().then((loaded) => { if (active) { setProducts(loaded); setProductsLoading(false) } })
     return () => { active = false }
   }, [])
-  return <BrowserRouter><Layout cartCount={cart.length} /><main><Routes><Route path="/" element={<Home products={products} />} /><Route path="/products" element={<Shop products={products} />} /><Route path="/shop" element={<Navigate to="/products" replace />} /><Route path="/product/:id" element={<ProductPage products={products} loading={productsLoading} addToCart={(p) => setCart([...cart, p])} />} /><Route path="/cart" element={<Cart cart={cart} setCart={setCart} />} /><Route path="/checkout" element={<Checkout cart={cart} clearCart={() => setCart([])} />} /><Route path="/confirmation/:id" element={<Confirmation />} /><Route path="/login" element={<Login />} /><Route path="/orders" element={<Orders />} /><Route path="/admin/orders" element={<Admin />} /><Route path="*" element={<Navigate to="/" />} /></Routes></main><footer><div className="footer-brand">DILKASH<span>.</span><p>Premium menswear from Chittagong.</p></div><div><p className="footer-label">Customer care</p><a href="tel:01769512082">01769 512 082</a><Link to="/orders">My orders</Link></div><div><p className="footer-label">Management</p><Link to="/admin/orders">Admin orders</Link></div><p className="copyright">© 2026 DILKASH</p></footer></BrowserRouter>
+  return <BrowserRouter><Layout cartCount={cart.length} /><main><Routes><Route path="/" element={<Home products={products} />} /><Route path="/products" element={<Shop products={products} />} /><Route path="/shop" element={<Navigate to="/products" replace />} /><Route path="/product/:id" element={<ProductPage products={products} loading={productsLoading} addToCart={(p) => setCart([...cart, p])} />} /><Route path="/cart" element={<Cart cart={cart} setCart={setCart} />} /><Route path="/checkout" element={<Checkout cart={cart} clearCart={() => setCart([])} />} /><Route path="/confirmation/:id" element={<Confirmation />} /><Route path="/login" element={<Login />} /><Route path="/orders" element={<Orders />} /><Route path="/admin/orders" element={<Admin />} /><Route path="*" element={<Navigate to="/" />} /></Routes></main><footer><div className="footer-brand">DILKASH<span>.</span><p>Premium menswear from Chittagong.</p></div><div><p className="footer-label">Customer care</p><a href="tel:01769512082">01769 512 082</a><Link to="/orders">My orders</Link></div><p className="copyright">© 2026 DILKASH</p></footer></BrowserRouter>
 }
 
 export default App
