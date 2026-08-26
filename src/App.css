@@ -66,3 +66,21 @@ footer { padding: 70px 6vw 35px; display: grid; grid-template-columns: 2fr 1fr 1
   .cart-row { grid-template-columns: 65px 1fr auto; gap: 12px; }
   .cart-row img { width: 65px; height: 80px; }
 }
+.admin-product-form { max-width: 900px; margin: 35px 0 70px; padding: 30px; border: 1px solid #dedbd3; background: #eeeae2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; }
+.admin-product-form h3 { grid-column: 1 / -1; margin: 0; font-size: 20px; font-weight: 500; }
+.admin-product-form label, .orders-page > label { display: flex; flex-direction: column; gap: 8px; color: #706b63; text-transform: uppercase; letter-spacing: .12em; font-size: 10px; }
+.admin-product-form label:nth-of-type(5), .admin-product-form label:nth-of-type(6) { grid-column: 1 / -1; }
+.admin-product-form input, .admin-product-form select, .admin-product-form textarea, .orders-page > label input { width: 100%; border: 1px solid #d6d1c7; background: #f8f7f3; padding: 13px; outline-color: #bd9250; font: inherit; color: #181614; text-transform: none; letter-spacing: normal; }
+.admin-product-form textarea { min-height: 90px; resize: vertical; }
+.admin-product-form .primary-button { justify-self: start; }
+.admin-products { max-width: 900px; }
+.admin-products h3, .admin-orders-heading { font-size: 22px; font-weight: 500; margin: 0 0 20px; }
+.admin-products .order-card { grid-template-columns: 1fr auto auto; }
+.danger-link { color: #a33b2f; margin-left: 18px; }
+.orders-page > label { max-width: 520px; margin: 18px 0 24px; }
+@media (max-width: 800px) {
+  .admin-product-form { grid-template-columns: 1fr; padding: 22px; }
+  .admin-product-form label:nth-of-type(5), .admin-product-form label:nth-of-type(6) { grid-column: auto; }
+  .admin-products .order-card { grid-template-columns: 1fr auto; }
+  .admin-products .order-card p { grid-column: 1 / -1; }
+}

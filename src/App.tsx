@@ -6,7 +6,7 @@ import './App.css'
 
 type Category = 'Punjabis' | 'Polos' | 'T-Shirts' | 'Shirts'
 type Product = { id: number; name: string; category: Category; price: number; image: string; description: string; stock: number }
-type OrderLine = { name: string; price: number; quantity: number }
+type OrderLine = { name: string; price: number; quantity: number; productId?: number | null }
 type Order = { id: string; date: string; customer: string; phone: string; address: string; items: OrderLine[]; status: string }
 
 const sampleProducts: Product[] = [
@@ -140,7 +140,7 @@ function Checkout({ cart, clearCart }: { cart: Product[]; clearCart: () => void 
 
 function Confirmation() {
   const { id } = useParams()
-  return <section className="center-page"><p className="eyebrow">Thank you</p><h2>Order received.</h2><p>Your order <strong>{id}</strong> is saved. We will contact you at the phone number you provided to confirm your order and delivery charge.</p><Link className="primary-button" to="/orders">View my orders <span>→</span></Link></section>
+  return <section className="center-page"><p className="eyebrow">Thank you</p><h2>Order received.</h2><p>Your order <strong>{id}</strong> is saved. We will contact you at the phone number you provided to confirm your order and delivery charge.</p><Link className="primary-button" to="/orders">Your orders <span>→</span></Link></section>
 }
 
 function Login() {
@@ -182,7 +182,7 @@ function Login() {
   return <section className="auth-page"><p className="eyebrow">DILKASH account</p><h2>{mode === 'signin' ? 'Welcome back.' : 'Create your account.'}</h2><p>{mode === 'signin' ? 'Sign in to view your orders and account details.' : 'Create an account to keep your orders together.'}</p><form onSubmit={submit}><label>Email address<input required name="email" type="email" placeholder="you@example.com" /></label><label>Password<input required name="password" type="password" minLength={6} placeholder="Your password" /></label>{error && <p className="form-error" role="alert">{error}</p>}{success && <p className="form-success" role="status">{success}</p>}<button className="primary-button" disabled={submitting}>{submitting ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Sign up'} <span>→</span></button></form><button className="text-link auth-switch" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setSuccess('') }}>{mode === 'signin' ? 'Need an account? Sign up' : 'Already have an account? Sign in'}</button></section>
 }
 
-type RemoteOrder = { id: string; created_at: string; customer_name: string; phone: string; address: string; status: string; order_items: { product_name: string; price: number; quantity: number }[] | null }
+type RemoteOrder = { id: string; created_at: string; customer_name: string; phone: string; address: string; status: string; order_items: { product_id: number | null; product_name: string; price: number; quantity: number }[] | null }
 
 function Orders() {
   const [orders, setOrders] = useState<Order[]>(() => getOrders())
@@ -216,11 +216,12 @@ function Orders() {
     void load()
     return () => { active = false }
   }, [])
-  return <section className="page-section orders-page"><p className="eyebrow">Account</p><h2>My orders.</h2>{loading ? <p>Loading your orders…</p> : message && <p className="account-message">{message}</p>}{!loading && orders.length === 0 ? <div className="empty-cart"><p>No orders yet.</p><Link className="primary-button" to="/shop">Start shopping <span>→</span></Link></div> : orders.map((order) => <article className="order-card" key={order.id}><div><strong>{order.id}</strong><span>{order.date}</span></div><p>{order.items.map((item) => `${item.name}${item.quantity > 1 ? ` ×${item.quantity}` : ''}`).join(', ')}</p><span className="order-status">{order.status}</span><small>Delivery: {order.address}<br />Phone: {order.phone}</small></article>)}</section>
+  return <section className="page-section orders-page"><p className="eyebrow">Account</p><h2>Your orders.</h2><p className="admin-note">View the products you ordered and track each order status here.</p>{loading ? <p>Loading your orders…</p> : message && <p className="account-message">{message}</p>}{!loading && orders.length === 0 ? <div className="empty-cart"><p>No orders yet.</p><Link className="primary-button" to="/shop">Start shopping <span>→</span></Link></div> : orders.map((order) => <article className="order-card" key={order.id}><div><strong>{order.id}</strong><span>{order.date}</span></div><p>{order.items.map((item) => `${item.name}${item.quantity > 1 ? ` ×${item.quantity}` : ''} · ${money(item.price)}`).join(', ')}</p><span className="order-status">{order.status}</span><small>Delivery: {order.address}<br />Phone: {order.phone}</small></article>)}</section>
 }
 
 function Admin() {
   const [orders, setOrders] = useState<Order[]>([])
+  const [orderSearch, setOrderSearch] = useState('')
   const [products, setProducts] = useState<Product[]>([])
   const [editing, setEditing] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
@@ -237,14 +238,14 @@ function Admin() {
       }
       setAuthorized(true)
       const [{ data, error }, { data: productData, error: productError }] = await Promise.all([
-        supabase.from('orders').select('id, created_at, customer_name, phone, address, status, order_items(product_name, price, quantity)').order('created_at', { ascending: false }),
+        supabase.from('orders').select('id, created_at, customer_name, phone, address, status, order_items(product_id, product_name, price, quantity)').order('created_at', { ascending: false }),
         supabase.from('products').select('id, name, category, price, description, image_url, stock').order('id'),
       ])
       if (!active) return
       if (error) setMessage(`Unable to load orders: ${error.message}`)
       else {
         const remoteOrders = (data || []) as unknown as RemoteOrder[]
-        setOrders(remoteOrders.map((order) => ({ id: order.id, date: new Date(order.created_at).toLocaleDateString('en-GB'), customer: order.customer_name, phone: order.phone, address: order.address, status: order.status, items: (order.order_items || []).map((item) => ({ name: item.product_name, price: item.price, quantity: item.quantity })) })))
+        setOrders(remoteOrders.map((order) => ({ id: order.id, date: new Date(order.created_at).toLocaleDateString('en-GB'), customer: order.customer_name, phone: order.phone, address: order.address, status: order.status, items: (order.order_items || []).map((item) => ({ name: item.product_name, price: item.price, quantity: item.quantity, productId: item.product_id })) })))
       }
       if (productError) setMessage((current) => current || `Unable to load products: ${productError.message}`)
       else setProducts((productData || []).filter((row) => isCategory(row.category)).map((row) => ({ id: Number(row.id), name: row.name, category: row.category, price: Number(row.price), description: row.description || '', image: row.image_url || '', stock: Number(row.stock) || 0 })))
@@ -281,9 +282,11 @@ function Admin() {
     setProducts((current) => current.filter((item) => item.id !== product.id))
     setMessage('Product deleted.')
   }
+  const normalizedSearch = orderSearch.trim().toLowerCase()
+  const filteredOrders = orders.filter((order) => !normalizedSearch || [order.id, order.customer, order.phone, order.address, ...order.items.flatMap((item) => [item.name, String(item.productId || '')])].some((value) => value.toLowerCase().includes(normalizedSearch)))
   if (loading) return <section className="page-section orders-page"><p>Checking admin access…</p></section>
   if (!authorized) return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Admin access.</h2><p className="account-message">{message}</p><Link className="primary-button" to="/login">Sign in <span>→</span></Link></section>
-  return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Store management.</h2><p className="admin-note">Manage products here. Customers will see saved changes in the shop.</p>{message && <p className="account-message">{message}</p>}<form className="admin-product-form" onSubmit={saveProduct}><h3>{editing ? 'Edit product' : 'Add product'}</h3><label>Product name<input required name="name" defaultValue={editing?.name || ''} /></label><label>Category<select name="category" defaultValue={editing?.category || 'Polos'}><option>Punjabis</option><option>Polos</option><option>T-Shirts</option><option>Shirts</option></select></label><label>Price<input required min="0" type="number" name="price" defaultValue={editing?.price || 0} /></label><label>Stock<input required min="0" type="number" name="stock" defaultValue={editing?.stock || 0} /></label><label>Image URL<input name="image" defaultValue={editing?.image || ''} /></label><label>Description<textarea name="description" defaultValue={editing?.description || ''} /></label><button className="primary-button" type="submit">{editing ? 'Save changes' : 'Add product'} <span>→</span></button>{editing && <button className="text-link" type="button" onClick={() => setEditing(null)}>Cancel</button>}</form><div className="admin-products"><h3>Products ({products.length})</h3>{products.map((product) => <article className="order-card" key={product.id}><div><strong>{product.name}</strong><span>{product.category}</span></div><p>{money(product.price)} · Stock: {product.stock}</p><button className="text-link" onClick={() => setEditing(product)}>Edit</button><button className="text-link danger-link" onClick={() => void removeProduct(product)}>Delete</button></article>)}</div><h3 className="admin-orders-heading">Customer orders</h3>{orders.length === 0 ? <p>No customer orders yet.</p> : orders.map((order) => <article className="order-card" key={order.id}><div><strong>{order.id}</strong><span>{order.date}</span></div><p><b>{order.customer}</b> · {order.phone}<br />{order.items.map((item) => `${item.name}${item.quantity > 1 ? ` ×${item.quantity}` : ''}`).join(', ')}</p><small>{order.address}</small><select value={order.status} onChange={(e) => void update(order.id, e.target.value)}><option>New order</option><option>Confirmed</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select></article>)}</section>
+  return <section className="page-section orders-page"><p className="eyebrow">DILKASH management</p><h2>Store management.</h2><p className="admin-note">Manage products here. Customers will see saved changes in the shop.</p>{message && <p className="account-message">{message}</p>}<form className="admin-product-form" onSubmit={saveProduct}><h3>{editing ? 'Edit product' : 'Add product'}</h3><label>Product name<input required name="name" defaultValue={editing?.name || ''} /></label><label>Category<select name="category" defaultValue={editing?.category || 'Polos'}><option>Punjabis</option><option>Polos</option><option>T-Shirts</option><option>Shirts</option></select></label><label>Price<input required min="0" type="number" name="price" defaultValue={editing?.price || 0} /></label><label>Stock<input required min="0" type="number" name="stock" defaultValue={editing?.stock || 0} /></label><label>Image URL<input name="image" defaultValue={editing?.image || ''} /></label><label>Description<textarea name="description" defaultValue={editing?.description || ''} /></label><button className="primary-button" type="submit">{editing ? 'Save changes' : 'Add product'} <span>→</span></button>{editing && <button className="text-link" type="button" onClick={() => setEditing(null)}>Cancel</button>}</form><div className="admin-products"><h3>Products ({products.length})</h3>{products.map((product) => <article className="order-card" key={product.id}><div><strong>{product.name}</strong><span>{product.category}</span></div><p>{money(product.price)} · Stock: {product.stock}</p><button className="text-link" onClick={() => setEditing(product)}>Edit</button><button className="text-link danger-link" onClick={() => void removeProduct(product)}>Delete</button></article>)}</div><h3 className="admin-orders-heading">Customer orders</h3><label>Find an order<input value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Mobile number, order ID, product ID or name" /></label>{filteredOrders.length === 0 ? <p>No matching orders.</p> : filteredOrders.map((order) => <article className="order-card" key={order.id}><div><strong>{order.id}</strong><span>{order.date}</span></div><p><b>{order.customer}</b> · {order.phone}<br />{order.items.map((item) => `${item.name}${item.quantity > 1 ? ` ×${item.quantity}` : ''}`).join(', ')}</p><small>{order.address}</small><select value={order.status} onChange={(e) => void update(order.id, e.target.value)}><option>New order</option><option>Confirmed</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select></article>)}</section>
 }
 
 function App() {
