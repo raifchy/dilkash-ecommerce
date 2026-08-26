@@ -163,7 +163,11 @@ function Login() {
     const password = String(data.get('password'))
     const result = mode === 'signin'
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: window.location.origin },
+      })
     setSubmitting(false)
     if (result.error) {
       setError(result.error.message)
