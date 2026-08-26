@@ -112,24 +112,17 @@ function Checkout({ cart, clearCart }: { cart: Product[]; clearCart: () => void 
       }
       const { data: userData } = await supabase.auth.getUser()
       const total = cart.reduce((sum, item) => sum + item.price, 0)
-      const { data: inserted, error: orderError } = await supabase.from('orders').insert({
-        user_id: userData.user?.id || null,
-        customer_name: String(data.get('name')),
-        phone: String(data.get('phone')),
-        address: String(data.get('address')),
-        total,
-      }).select('id').single()
-      if (orderError || !inserted) throw orderError || new Error('The order could not be created.')
-      const { error: itemsError } = await supabase.from('order_items').insert(cart.map((item) => ({
-        order_id: inserted.id,
-        product_id: item.id,
-        product_name: item.name,
-        price: item.price,
-        quantity: 1,
-      })))
-      if (itemsError) throw itemsError
+      const { data: orderId, error: orderError } = await supabase.rpc('create_cod_order', {
+        p_user_id: userData.user?.id || null,
+        p_customer_name: String(data.get('name')),
+        p_phone: String(data.get('phone')),
+        p_address: String(data.get('address')),
+        p_total: total,
+        p_items: cart.map((item) => ({ product_id: item.id, product_name: item.name, price: item.price, quantity: 1 })),
+      })
+      if (orderError || !orderId) throw orderError || new Error('The order could not be created.')
       clearCart()
-      navigate(`/confirmation/${inserted.id}`)
+      navigate(`/confirmation/${orderId}`)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'We could not place your order. Please try again.')
     } finally {
@@ -141,7 +134,7 @@ function Checkout({ cart, clearCart }: { cart: Product[]; clearCart: () => void 
 
 function Confirmation() {
   const { id } = useParams()
-  return <section className="center-page"><p className="eyebrow">Thank you</p><h2>Order received.</h2><p>Your order <strong>{id}</strong> is saved. We will call you shortly to confirm delivery.</p><Link className="primary-button" to="/orders">View my orders <span>→</span></Link></section>
+  return <section className="center-page"><p className="eyebrow">Thank you</p><h2>Order received.</h2><p>Your order <strong>{id}</strong> is saved. We will contact you at the phone number you provided to confirm your order and delivery charge.</p><Link className="primary-button" to="/orders">View my orders <span>→</span></Link></section>
 }
 
 function Login() {
